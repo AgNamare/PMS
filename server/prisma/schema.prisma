@@ -1,0 +1,130 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// -----------------------------
+// ENUMS
+// -----------------------------
+enum UserRole {
+  LANDLORD
+  AGENT
+  TENANT
+}
+
+enum PaymentStatus {
+  PAID
+  PARTIAL
+  UNPAID
+}
+
+// -----------------------------
+// MODELS
+// -----------------------------
+
+model User {
+  id          Int       @id @default(autoincrement())
+  firstName   String
+  lastName    String
+  email       String    @unique
+  phone       String?
+  password    String
+  role        UserRole
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  landlordId  Int?      // Optional for tenants/agents under a landlord
+
+  // Relations
+  properties  Property[] @relation("LandlordProperties")
+  tenants     Tenant[]
+  leases      Lease[]    @relation("LandlordLeases") // leases managed by this user
+}
+
+model Property {
+  id          Int       @id @default(autoincrement())
+  name        String
+  location    String
+  description String?
+  landlordId  Int
+
+  // Relations
+  landlord    User      @relation("LandlordProperties", fields: [landlordId], references: [id])
+  units       Unit[]
+}
+
+model Unit {
+  id          Int       @id @default(autoincrement())
+  propertyId  Int
+  unitNumber  String
+  defaultRent Float
+
+  // Relations
+  property    Property  @relation(fields: [propertyId], references: [id])
+  leases      Lease[]
+  tenants     Tenant[]
+  payments    Payment[]
+}
+
+model Tenant {
+  id       Int    @id @default(autoincrement())
+  unitId   Int
+  userId   Int
+
+  // Relations
+  unit     Unit   @relation(fields: [unitId], references: [id])
+  user     User   @relation(fields: [userId], references: [id])
+  leases   Lease[]
+}
+
+model Lease {
+  id         Int       @id @default(autoincrement())
+  tenantId   Int
+  unitId     Int
+  landlordId Int
+  startDate  DateTime
+  endDate    DateTime
+  status     String
+  rentAmount Float?
+
+  // Relations
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  unit       Unit      @relation(fields: [unitId], references: [id])
+  landlord   User      @relation("LandlordLeases", fields: [landlordId], references: [id])
+  invoices   Invoice[]
+}
+
+model Invoice {
+  id            Int          @id @default(autoincrement())
+  leaseId       Int
+  amount        Float
+  status        PaymentStatus
+  paymentMethod String?
+  paymentDate   DateTime?
+
+  // Relations
+  lease         Lease        @relation(fields: [leaseId], references: [id])
+  payments      Payment[]
+}
+
+model Payment {
+  id        Int          @id @default(autoincrement())
+  invoiceId Int
+  unitId    Int
+  amount    Float
+  status    PaymentStatus
+
+  // Relations
+  invoice   Invoice      @relation(fields: [invoiceId], references: [id])
+  unit      Unit         @relation(fields: [unitId], references: [id])
+}
